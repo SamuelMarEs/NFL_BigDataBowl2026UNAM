@@ -51,3 +51,5 @@ Validación: leave-one-out (el pase evaluado se excluye de sus propios vecinos);
 
 ## Bitácora
 - EDA leído: se cambia el momento de evaluación de captura a lanzamiento (tracking truncado). Tareas actualizadas.
+- T1 hecha (Samuel): backend/main.py sirve todos los endpoints del contrato con datos de prueba de backend/mock.py (20 defensores, 3 jugadas con 30 fantasmas); respuestas validadas con Pydantic. Rutas con datos: /api/plays/2021090900/97, /2021091200/410, /2021091900/1203; defensores 1001 a 1020.
+- T1 decisiones: con coverage=man|zone el ranking devuelve en delta_medio el delta de esa cobertura; sort siempre de mayor a menor; /informe responde plantilla (generado_con_ia false). Contrato sin cambios.
