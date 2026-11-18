@@ -1,0 +1,46 @@
+# Python / uv
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+
+# Instalador / hackathon
+.hackathon/.tools/
+.hackathon/.cache/
+.hackathon/.bootstrap/
+.hackathon/setup.log
+.hackathon/tmp/
+
+# Entregas generadas
+entrega-*.zip
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Llaves y credenciales: nunca al repositorio
+*.pem
+*.key
+.aws/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux / macOS
+.DS_Store
+*.swp
+*~
+
+# Logs
+*.log
