@@ -77,17 +77,27 @@ export function useApi<T>(ruta: string | null) {
   useEffect(() => {
     if (!ruta) return
     let vigente = true
+    let temporizador: ReturnType<typeof setTimeout> | undefined
     setData(null)
     setError(null)
-    fetch(ruta)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Error ${r.status} en ${ruta}`)
-        return r.json() as Promise<T>
-      })
-      .then((d) => vigente && setData(d))
-      .catch((e: Error) => vigente && setError(e.message))
+    // Al arrancar, el servidor calcula los modelos (~50 s) y responde 503: se reintenta cada 3 s (máx. 3 min).
+    const intentar = (n: number) => {
+      fetch(ruta)
+        .then((r) => {
+          if (r.status === 503 && n < 60) {
+            temporizador = setTimeout(() => vigente && intentar(n + 1), 3000)
+            return null
+          }
+          if (!r.ok) throw new Error(`Error ${r.status} en ${ruta}`)
+          return r.json() as Promise<T>
+        })
+        .then((d) => d !== null && vigente && setData(d))
+        .catch((e: Error) => vigente && setError(e.message))
+    }
+    intentar(0)
     return () => {
       vigente = false
+      clearTimeout(temporizador)
     }
   }, [ruta])
   return { data, error }
