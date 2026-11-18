@@ -130,6 +130,29 @@ class Trayectoria(BaseModel):
     fps: int
     balon: list[PuntoXY]
     jugadores: list[JugadorTray]
+class Partido(BaseModel):
+    gameId: int
+    semana: int
+    local: str
+    visitante: str
+    jugadas: int
+class JugadaLista(BaseModel):
+    gameId: int
+    playId: int
+    semana: int
+    local: str
+    visitante: str
+    cuarto: int
+    reloj: str
+    down: int
+    yardas_por_jugar: int
+    equipo_ataque: str
+    equipo_defensa: str
+    receptor: str
+    defensor: str
+    resultado: Literal["C", "I", "IN"]
+    descripcion: str
+    delta: float
 class Metodologia(BaseModel):
     rmse_yardas: float
     brier_completo: float
@@ -263,6 +286,57 @@ def perfil_defensor(nfl_id: int) -> dict:
 def listar_equipos() -> list[dict]:
     _listo()
     return E.equipos
+@lru_cache(maxsize=1)
+def _catalogo() -> pd.DataFrame:
+    """Una fila por jugada evaluada, con partido, cuarto, reloj y down (de games.csv y plays.csv)."""
+    r = E.modelo.d
+    juegos = pd.read_csv(DATA / "games.csv", usecols=["gameId", "homeTeamAbbr", "visitorTeamAbbr"])
+    plays = pd.read_csv(DATA / "plays.csv", usecols=["gameId", "playId", "quarter", "gameClock", "possessionTeam"])
+    c = r[["gameId", "playId", "semana", "resultado", "down", "yardas_por_jugar", "receptor_nombre",
+           "defensor_nombre", "equipo_defensa", "descripcion"]].copy()
+    c["delta"] = E.res["delta"].to_numpy()
+    c = c.merge(juegos, on="gameId", how="left").merge(plays, on=["gameId", "playId"], how="left")
+    return c.sort_values(["gameId", "quarter", "gameClock"], ascending=[True, True, False]).reset_index(drop=True)
+@app.get("/api/games", response_model=list[Partido])
+def listar_partidos() -> list[dict]:
+    _listo()
+    c = _catalogo()
+    g = c.groupby(["gameId", "semana", "homeTeamAbbr", "visitorTeamAbbr"]).size().reset_index(name="n")
+    g = g.sort_values(["semana", "gameId"])
+    return [{"gameId": int(a.gameId), "semana": int(a.semana), "local": str(a.homeTeamAbbr),
+             "visitante": str(a.visitorTeamAbbr), "jugadas": int(a.n)} for a in g.itertuples()]
+@app.get("/api/plays", response_model=list[JugadaLista])
+def buscar_jugadas(
+    game_id: int | None = None,
+    quarter: int | None = Query(None, ge=1, le=5),
+    down: int | None = Query(None, ge=1, le=4),
+    resultado: Literal["C", "I", "IN"] | None = None,
+    team: str | None = None,
+    defensor: str | None = None,
+    limit: int = Query(200, ge=1, le=500),
+) -> list[dict]:
+    """Busca jugadas por partido, cuarto, down, resultado, equipo (ataque o defensa) o nombre de defensor/receptor."""
+    _listo()
+    c = _catalogo()
+    if game_id is not None:
+        c = c[c["gameId"] == game_id]
+    if quarter is not None:
+        c = c[c["quarter"] == quarter]
+    if down is not None:
+        c = c[c["down"] == down]
+    if resultado:
+        c = c[c["resultado"] == resultado]
+    if team:
+        c = c[(c["possessionTeam"] == team) | (c["equipo_defensa"] == team)]
+    if defensor:
+        q = defensor.lower()
+        c = c[c["defensor_nombre"].str.lower().str.contains(q, regex=False) | c["receptor_nombre"].str.lower().str.contains(q, regex=False)]
+    return [{"gameId": int(a.gameId), "playId": int(a.playId), "semana": int(a.semana), "local": str(a.homeTeamAbbr),
+             "visitante": str(a.visitorTeamAbbr), "cuarto": int(a.quarter), "reloj": str(a.gameClock)[:5],
+             "down": int(a.down), "yardas_por_jugar": int(a.yardas_por_jugar), "equipo_ataque": str(a.possessionTeam),
+             "equipo_defensa": str(a.equipo_defensa), "receptor": str(a.receptor_nombre), "defensor": str(a.defensor_nombre),
+             "resultado": str(a.resultado), "descripcion": str(a.descripcion), "delta": float(a.delta)}
+            for a in c.head(limit).itertuples()]
 @app.get("/api/plays/{game_id}/{play_id}", response_model=Jugada)
 def ver_jugada(game_id: int, play_id: int) -> dict:
     _listo()

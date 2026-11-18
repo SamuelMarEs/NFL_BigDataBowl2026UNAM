@@ -27,6 +27,15 @@ Jugada: `{"gameId": 1, "playId": 2, "semana": 1, "descripcion": "...", "delta": 
 [{"equipo": "CHI", "plays": 200, "delta_medio": 0.3, "yardas_esperadas_concedidas": 4.1}]
 ```
 
+## GET api/games
+`[{"gameId": 2021090900, "semana": 1, "local": "TB", "visitante": "DAL", "jugadas": 78}]` (ordenado por semana).
+## GET api/plays
+Busca jugadas evaluadas. Query opcionales: `game_id`, `quarter` (1-5), `down` (1-4), `resultado` (C|I|IN), `team` (ataque o defensa), `defensor` (texto en nombre de defensor o receptor), `limit` (default 200, máx. 500). Orden: partido, cuarto, reloj descendente.
+```json
+[{"gameId": 1, "playId": 2, "semana": 1, "local": "TB", "visitante": "DAL", "cuarto": 1, "reloj": "13:33", "down": 3,
+  "yardas_por_jugar": 2, "equipo_ataque": "TB", "equipo_defensa": "DAL", "receptor": "...", "defensor": "...",
+  "resultado": "I", "descripcion": "...", "delta": 1.1}]
+```
 ## GET api/plays/{gameId}/{playId}
 Momento del lanzamiento (último frame del tracking). Coordenadas normalizadas (ataque hacia x creciente), en yardas.
 ```json
