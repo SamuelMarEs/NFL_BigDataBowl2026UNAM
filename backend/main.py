@@ -4,6 +4,7 @@ y une el boxscore de backend/eda/defensores_resultados.csv. No escribe archivos.
 Mientras calcula, /health responde ok y las rutas /api responden 503.
 Formato de cada ruta: backend/contrato_api.md (fuente de verdad con el frontend).
 """
+import os
 import threading
 from pathlib import Path
 from typing import Literal
@@ -11,7 +12,20 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
-from . import modelo
+
+
+def cargar_env():
+    f = Path(__file__).resolve().parent.parent / ".env"
+    if f.exists():
+        for linea in f.read_text(encoding="utf-8-sig").splitlines():
+            linea = linea.strip()
+            if linea and not linea.startswith("#") and "=" in linea:
+                k, v = linea.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+cargar_env()
+from . import informe, modelo  # noqa: E402
 app = FastAPI(title="Hackathon NFL UNAM")
 BOX_CSV = Path(__file__).resolve().parent / "eda" / "defensores_resultados.csv"
 MIN_PLAYS = 15
@@ -200,18 +214,14 @@ def listar_defensores(
     return sorted(filas, key=lambda f: f[sort], reverse=True)
 @app.get("/api/defenders/{nfl_id}/informe", response_model=Informe)
 def informe_defensor(nfl_id: int) -> dict:
-    # Plantilla sin IA. T8 (opcional) intentará primero con Bedrock.
+    # Intenta Bedrock (backend/informe.py); si falla, plantilla con las mismas cifras.
     _listo()
     d = E.defensores.get(nfl_id)
     if d is None:
         raise HTTPException(404, "Defensor no encontrado")
-    signo = "mejor" if d["delta_medio"] >= 0 else "peor"
-    texto = (
-        f"{d['nombre']} ({d['posicion']}, {d['equipo']}) tuvo {d['plays']} pases como defensor más cercano. "
-        f"Concedió en promedio {abs(d['delta_medio']):.2f} yardas esperadas {'menos' if d['delta_medio'] >= 0 else 'más'} "
-        f"que un defensor promedio en las mismas jugadas ({signo} que el fantasma)."
-    )
-    return {"texto": texto, "generado_con_ia": False}
+    return informe.generar(d)
+
+
 def _resumen(r) -> dict:
     return {"gameId": int(r.gameId), "playId": int(r.playId), "semana": int(r.semana),
             "descripcion": str(r.descripcion), "delta": float(r.delta),

@@ -66,7 +66,10 @@ Abre la URL que muestra Vite (usa `localhost`, no `127.0.0.1`).
 - `backend/capturas.csv` ya está versionado. Solo hace falta regenerarlo si cambia la lógica de extracción:
   `.venv/bin/python backend/precompute.py` (~130 s, lee `data/tracking/`).
 - En Windows usa `.venv\Scripts\uvicorn` en lugar de `.venv/bin/uvicorn`.
-- La IA (informe por defensor con Bedrock) es opcional y todavía no está implementada. La app no la necesita.
+- IA opcional: `GET api/defenders/{id}/informe` intenta redactar el informe con Amazon Bedrock (Nova, Strands Agents).
+  Si no hay llaves o falla, devuelve una plantilla con las mismas cifras (`generado_con_ia: false`). Para probarla en
+  local copia `.env.example` a `.env` y pega las llaves temporales del workshop (`.env` no se versiona ni se entrega).
+  En AWS el rol de la tarea firma las llamadas y no se usan llaves.
 
 ## Entrega
 
