@@ -1,10 +1,9 @@
 """API de la app. Ejecuta: .venv/bin/uvicorn backend.main:app --reload
-T4: al arrancar calcula los modelos (backend/modelo.py) sobre backend/capturas.csv en un hilo (~50 s)
+Al arrancar calcula los modelos (backend/modelo.py) sobre backend/capturas.csv en un hilo (~20 s)
 y une el boxscore de backend/eda/defensores_resultados.csv. No escribe archivos.
 Mientras calcula, /health responde ok y las rutas /api responden 503.
 Formato de cada ruta: backend/contrato_api.md (fuente de verdad con el frontend).
 """
-import os
 import threading
 from pathlib import Path
 from functools import lru_cache
@@ -15,21 +14,10 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
 
-def cargar_env():
-    f = Path(__file__).resolve().parent.parent / ".env"
-    if f.exists():
-        for linea in f.read_text(encoding="utf-8-sig").splitlines():
-            linea = linea.strip()
-            if linea and not linea.startswith("#") and "=" in linea:
-                k, v = linea.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
-
-
-cargar_env()
-from . import informe, modelo  # noqa: E402
-from .precompute import normalizar  # noqa: E402
+from . import modelo
+from .precompute import normalizar
 DATA = Path(__file__).resolve().parent.parent / "data"
-app = FastAPI(title="Hackathon NFL UNAM")
+app = FastAPI(title="NFL Ghosts")
 BOX_CSV = Path(__file__).resolve().parent / "eda" / "defensores_resultados.csv"
 MIN_PLAYS = 15
 MAX_DIST = 10
@@ -161,9 +149,6 @@ class Metodologia(BaseModel):
     max_dist_defensor: int
     validacion: str
     momento: str
-class Informe(BaseModel):
-    texto: str
-    generado_con_ia: bool
 # ---------- Estado calculado al arrancar ----------
 class Estado:
     listo = False
@@ -209,7 +194,7 @@ def _calcular() -> None:
                  for t, g in res.groupby("equipo_defensa")]
     E.metodologia = {"rmse_yardas": met["rmse_yardas"], "brier_completo": met["brier_completo"],
                      "n_pases": met["n_pases"], "min_plays": MIN_PLAYS, "max_dist_defensor": MAX_DIST,
-                     "validacion": "leave-one-out", "momento": "lanzamiento (0.5 s tras pass_forward)"}
+                     "validacion": "validación cruzada por partido (5 grupos)", "momento": "lanzamiento (0.5 s tras pass_forward)"}
     E.indice = {(int(a), int(b)): i for i, (a, b) in enumerate(zip(res["gameId"], res["playId"]))}
     E.modelo, E.res = m, res
     E.listo = True
@@ -258,14 +243,6 @@ def listar_defensores(
             continue
         filas.append(fila)
     return sorted(filas, key=lambda f: f[sort], reverse=True)
-@app.get("/api/defenders/{nfl_id}/informe", response_model=Informe)
-def informe_defensor(nfl_id: int) -> dict:
-    # Intenta Bedrock (backend/informe.py); si falla, plantilla con las mismas cifras.
-    _listo()
-    d = E.defensores.get(nfl_id)
-    if d is None:
-        raise HTTPException(404, "Defensor no encontrado")
-    return informe.generar(d)
 
 
 def _resumen(r) -> dict:

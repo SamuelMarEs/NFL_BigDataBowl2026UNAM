@@ -1,7 +1,7 @@
 # Contrato de la API (editar solo Samuel)
 
 Todas las rutas bajo `/api`. El frontend las llama sin diagonal inicial: `fetch('api/defenders')`.
-Borrador. Si cambia, actualizar aquí primero.
+Si la API cambia, actualizar este archivo primero.
 
 ## GET api/defenders
 Query opcionales: `position`, `team`, `coverage` (man|zone), `min_plays` (default 15), `sort` (default delta_medio).
@@ -60,10 +60,7 @@ Tracking de la jugada del snap al último frame (10 fps), normalizado a ataque h
 Los fantasmas no tienen trayectoria medida: el frontend los interpola desde el defensor real hasta su posición final.
 ## GET api/metodologia
 `{"rmse_yardas": 0.0, "brier_completo": 0.0, "n_pases": 0, "min_plays": 15, "max_dist_defensor": 10,
- "validacion": "leave-one-out", "momento": "lanzamiento (0.5 s tras pass_forward)"}`
-
-## GET api/defenders/{nflId}/informe (opcional, IA)
-`{"texto": "...", "generado_con_ia": true}`. Si la IA falla: plantilla con `generado_con_ia: false`.
+ "validacion": "validación cruzada por partido (5 grupos)", "momento": "lanzamiento (0.5 s tras pass_forward)"}`
 
 ## GET /health
 `{"status": "ok"}` (ya existe)

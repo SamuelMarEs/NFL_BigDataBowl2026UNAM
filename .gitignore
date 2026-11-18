@@ -11,25 +11,11 @@ node_modules/
 dist/
 .vite/
 
-# Instalador / hackathon
-.hackathon/.tools/
-.hackathon/.cache/
-.hackathon/.bootstrap/
-.hackathon/setup.log
-.hackathon/tmp/
 
-# Entregas generadas
-entrega-*.zip
 
 # Variables de entorno
 .env
-.env.*
-!.env.example
 
-# Llaves y credenciales: nunca al repositorio
-*.pem
-*.key
-.aws/
 
 # Windows
 Thumbs.db
@@ -44,4 +30,6 @@ $RECYCLE.BIN/
 
 # Logs
 *.log
-setup-log.txt
+
+# Herramientas locales (Python/Node/uv) que quedaron del instalador anterior
+.hackathon/

@@ -28,5 +28,5 @@
 - Mínimo de pases por defensor para entrar al ranking: 15 (pases donde es el defensor más cercano al receptor). Es el valor por defecto de `min_plays`.
 - Solo se cuentan los pases donde el defensor más cercano está a 10 yardas o menos del receptor. El resto se descarta en precompute.py.
 - Valor de una intercepción: 0 yardas (igual que un incompleto).
-- No hay división entrenamiento/prueba por semanas. Los modelos kNN se evalúan con leave-one-out: al predecir un pase se excluye ese mismo pase de los vecinos.
+- Validación: cruzada de 5 grupos por partido (GroupKFold por gameId). Cada pase se predice con modelos que no vieron su partido. No se divide por semanas.
 - Posiciones a mostrar en el ranking (T0): CB, FS, SS, ILB, MLB, OLB. Por defecto el filtro va en CB, FS y SS. DE, DT y NT se excluyen (rushers, 0 a 3 intercepciones y pocos pases cubiertos). DB y RB (1 jugador cada uno, 0 intercepciones) se excluyen por ser ruido.

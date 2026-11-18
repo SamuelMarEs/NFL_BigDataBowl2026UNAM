@@ -1,134 +1,71 @@
-# Defensores NFL: evaluación en pase con "fantasmas"
+# NFL Ghosts: evaluación de defensores en pase
 
-Hackathon NFL Big Data Bowl, UNAM.
+App para coaches y reclutadores que evalúa a los defensores en jugadas de pase de la temporada 2021 (NFL Big Data Bowl).
+Está inspirada en el paper "NFL Ghosts" (Yurko, Nguyen, Pelechrinis; `NFLghosts.pdf`).
+Autores: Samuel Márquez Estrada y Keily Atziri Romo Nuñez.
 
-**Autores:** Samuel Márquez Estrada y Keily Atziri Romo Nuñez.
+## Método
 
-## Descripción
+Cada pase se compara contra un "defensor fantasma": un defensor promedio colocado según lo que hacen otros defensores en jugadas parecidas.
 
-App para coaches y reclutadores que evalúa el desempeño de defensores en jugadas de pase de la temporada 2021
-(Big Data Bowl). Está inspirada en el paper "NFL Ghosts" (Yurko, Nguyen, Pelechrinis; `NFLghosts.pdf`).
+1. Se toma el último frame del tracking de cada pase (hasta 0.5 s después de `pass_forward`), al receptor objetivo y al defensor más cercano (a 10 yardas o menos).
+2. Modelo A (scikit-learn): estima las yardas esperadas del pase para la ofensiva. Un `HistGradientBoostingClassifier` da P(completo) y un `HistGradientBoostingRegressor`, entrenado solo con pases completos, da las yardas si se completa.
+3. Modelo B: un `RandomForestRegressor` usado como muestreador genera 30 posiciones y velocidades de fantasma a partir de las variables de la jugada sin el defensor real.
+4. `delta = esperado con fantasmas - esperado con el defensor real`. Positivo significa que el defensor limitó el pase mejor que el promedio.
+5. Se agrega por defensor, equipo, posición y tipo de cobertura (man o zone). El ranking exige mínimo 15 pases por defensor.
 
-Para cada pase se compara al defensor real con un "defensor fantasma": un defensor promedio colocado según lo que
-suelen hacer otros defensores en jugadas parecidas. Dos modelos kNN (solo numpy y pandas) estiman las yardas
-esperadas del pase con el defensor real y con ~30 fantasmas. La diferencia es el `delta`: positivo significa que el
-defensor limitó el pase mejor que el promedio.
+Validación: validación cruzada de 5 grupos por partido sobre 6626 pases. Cada pase y sus fantasmas se predicen con modelos que no vieron su partido.
+RMSE de yardas 9.06 (base 10.15) y Brier de P(completo) 0.184 (base 0.229).
 
-Límite del método: el tracking de este dataset termina 0.5 s después del lanzamiento, así que se evalúa al defensor
-en el último frame disponible y no en la captura. La validación es leave-one-out sobre 6626 pases
-(RMSE de yardas 9.32, Brier de P(completo) 0.190).
-
-Pantallas: ranking de defensores, perfil, vista de jugada (campo SVG con fantasmas), equipos y metodología.
+Límites: el tracking de este dataset termina 0.5 s después del lanzamiento, así que no hay posición de captura y se evalúa al defensor en el momento del lanzamiento. El delta de cada defensor es ruidoso con 15 a 25 pases (consistencia entre mitades de sus pases: 0.24). Los hallazgos del análisis exploratorio están en `.kiro/steering/hallazgos.md`.
 
 ## Estructura
 
-- `backend/`: FastAPI. `precompute.py` genera `capturas.csv`, `modelo.py` tiene los modelos, `main.py` es la API
-  (contrato en `backend/contrato_api.md`).
-- `dashboard/`: React + TypeScript + Tailwind 3 + Recharts (Vite).
-- `data/`: datos originales (solo lectura).
+- `backend/precompute.py`: lee `data/tracking/` y genera `backend/capturas.csv` (una fila por pase).
+- `backend/modelo.py`: modelos A y B y cálculo del delta.
+- `backend/main.py`: API FastAPI. Calcula los modelos al arrancar desde `capturas.csv`. Rutas y JSON en `backend/contrato_api.md`.
+- `backend/eda/`: análisis exploratorio y `defensores_resultados.csv` (intercepciones, pases defendidos, etc., usado como boxscore).
+- `dashboard/`: React + TypeScript + Tailwind 3 + Recharts (Vite). Pantallas: ranking, perfil de defensor, buscador y animación de jugadas con fantasmas, equipos y metodología.
+- `data/`: datos originales del Big Data Bowl (solo lectura; ver `data/README.md`).
 
-## Cómo correrlo
+## Requisitos
 
-Requisitos: el entorno del hackathon ya instalado (`.venv/` con Python 3.12 y Node 22). Verifica con:
+- Python 3.12 y las dependencias de `requirements.txt` (FastAPI, Uvicorn, Pydantic, pandas, numpy, scikit-learn).
+- Node 22 y npm, para el dashboard (las versiones están fijadas en `dashboard/package-lock.json`).
 
-```
-sh .hackathon/setup.sh --check
-```
+## Instalación
 
-Los comandos se ejecutan desde la raíz del proyecto. En Linux, si `npm` no está en el PATH:
-`export PATH="$PWD/.hackathon/.tools/node/bin:$PATH"`.
-
-### Opción 1: un solo servidor (como en el despliegue)
+Desde la raíz del repositorio:
 
 ```
-cd dashboard && npm install && npm run build && cd ..
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cd dashboard && npm install && cd ..
+```
+
+En Windows usa `.venv\Scripts\pip` y `.venv\Scripts\uvicorn` en lugar de `.venv/bin/...`.
+
+## Ejecución
+
+Un solo servidor, con la API y el dashboard en la misma URL:
+
+```
+cd dashboard && npm run build && cd ..
 .venv/bin/uvicorn backend.main:app --port 8000
 ```
 
-Abre `http://localhost:8000`. La API y el dashboard comparten URL y puerto.
+Abre `http://localhost:8000`. Al arrancar, la API calcula los modelos (~20 s). Mientras tanto `/health` responde `ok` y las rutas `/api` responden 503; el dashboard reintenta solo.
 
-### Opción 2: desarrollo (dos procesos)
+Modo desarrollo, con dos procesos (Vite hace proxy de `/api` a `localhost:8000`):
 
 ```
-# Terminal 1: API
 .venv/bin/uvicorn backend.main:app --port 8000 --reload
-
-# Terminal 2: dashboard (proxy /api -> localhost:8000)
-cd dashboard && npm install && npm run dev
+cd dashboard && npm run dev
 ```
 
-Abre la URL que muestra Vite (usa `localhost`, no `127.0.0.1`).
+## Reproducir los resultados
 
-### Windows (PowerShell)
-
-Verifica el entorno con `.\.hackathon\setup.cmd --check`.
-
-En Windows, Node está en `.hackathon\.tools\node` (sin `bin`). PowerShell suele bloquear `npm.ps1`
-("la ejecución de scripts está deshabilitada en este sistema"); para evitarlo usa `npm.cmd` en lugar de `npm`,
-o corre los comandos desde `cmd`.
-
-```
-# Terminal 1 (raíz del proyecto): API
-.venv\Scripts\uvicorn backend.main:app --port 8000
-
-# Terminal 2: dashboard
-$env:Path = "$PWD\.hackathon\.tools\node;$env:Path"
-cd dashboard
-npm.cmd install   # solo si no existe node_modules
-npm.cmd run dev
-```
-
-Para el modo de un solo servidor, usa `npm.cmd run build` en `dashboard` y luego el comando de la Terminal 1.
-
-Si uvicorn falla con `[Errno 10048] ... solo se permite un uso de cada dirección de socket`, ya hay otro proceso
-en el puerto 8000 (por ejemplo, una API anterior que sigue corriendo con código viejo). Búscalo y ciérralo:
-
-```
-Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object OwningProcess
-Stop-Process -Id <PID>
-```
-
-### Notas
-
-- Al arrancar, la API calcula los modelos (~50 s). Mientras tanto `/health` responde `ok` y las rutas `/api`
-  responden 503; el dashboard funciona cuando termina.
-- `backend/capturas.csv` ya está versionado. Solo hace falta regenerarlo si cambia la lógica de extracción:
-  `.venv/bin/python backend/precompute.py` (~130 s, lee `data/tracking/`).
-- En Windows usa `.venv\Scripts\uvicorn` y `.venv\Scripts\python` en lugar de `.venv/bin/...` (ver la sección Windows).
-- La IA es opcional (ver la sección siguiente). La app funciona completa sin ella.
-- Si el dashboard se abre mientras la API calcula, muestra "Cargando…" y reintenta solo cada 3 s.
-
-## IA opcional (informe por defensor con Amazon Bedrock)
-`GET api/defenders/{nflId}/informe` redacta un párrafo en español para coaches y reclutadores con Amazon Nova
-(Bedrock) mediante Strands Agents (`backend/informe.py`). El modelo solo recibe las cifras del defensor (delta,
-error estándar, man/zone, boxscore) y se le pide no inventar datos. La respuesta es
-`{"texto": "...", "generado_con_ia": true|false}`.
-
-Si la IA no está disponible (sin llaves, llaves caducadas, sin acceso al modelo, sin red o más de 20 s de espera),
-la API devuelve una plantilla con las mismas cifras y `generado_con_ia: false`. La app nunca depende de la IA.
-
-### Activarla en local
-1. Copia `.env.example` a `.env` en la raíz y pega las llaves temporales del workshop
-   (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`). Valen unas horas. `.env` no se versiona
-   ni entra al .zip de entrega.
-   Alternativa: exporta las tres variables en la misma terminal donde arrancas uvicorn
-   (`export AWS_ACCESS_KEY_ID=...`). No valen para otras terminales.
-2. Arranca la API (`.venv/bin/uvicorn backend.main:app --port 8000`) y espera a que termine de calcular (~50 s).
-3. Prueba: `curl localhost:8000/api/defenders/<nflId>/informe`. Con `generado_con_ia: true` la IA funciona.
-
-Variables opcionales: `AWS_REGION` (por defecto `us-east-1`) y `BEDROCK_MODEL_ID` (por defecto
-`us.amazon.nova-pro-v1:0`). El código nunca lee ni escribe las llaves; boto3 las toma del entorno.
-Si las llaves caducan, pega nuevas y reinicia la API. Cada informe generado con IA se guarda en memoria hasta reiniciar.
-
-### En AWS
-No se configura nada: el hosting define `BEDROCK_MODEL_ID` y el rol de la tarea firma las llamadas.
-
-### Pendiente
-El dashboard todavía no muestra el informe. Hace falta un bloque en el perfil del defensor que consuma
-`fetch('api/defenders/' + id + '/informe')`.
-
-## Entrega
-
-```
-sh .hackathon/setup.sh --entregar
-```
+- Métricas y ranking de los modelos, sin API: `.venv/bin/python -m backend.modelo` (~20 s). Los resultados son deterministas.
+- Regenerar `backend/capturas.csv` desde el tracking (~130 s, solo hace falta si cambia la extracción): `.venv/bin/python backend/precompute.py`. El CSV ya está versionado.
+- Análisis exploratorio: `.venv/bin/python backend/eda/analisis_inicial.py` y `backend/eda/resultados_defensivos.py`. Sus salidas están en `backend/eda/*.txt` y `*.csv`.
+- Verificar el frontend: `cd dashboard && npm run build`.

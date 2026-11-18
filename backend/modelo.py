@@ -1,23 +1,25 @@
-"""Modelos kNN (solo numpy y pandas) y delta contra defensores fantasma.
-
+"""Modelos con scikit-learn y delta contra defensores fantasma.
 A: valor esperado y P(completo) dado el estado de la jugada (incluye al defensor).
-B: distribucion del defensor fantasma (dx, dy, vx, vy relativos al receptor) dado
-   variables de la jugada SIN las del defensor real.
-Validacion: leave-one-out (el pase evaluado se excluye de sus vecinos).
+   P(completo) = HistGradientBoostingClassifier; yardas esperadas = P(completo) * E[yardas | completo]
+   (HistGradientBoostingRegressor entrenado solo con pases completos).
+B: distribucion del defensor fantasma (dx, dy, vx, vy relativos al receptor) dado variables de la
+   jugada SIN las del defensor real. Bosque aleatorio usado como muestreador (estilo quantile regression forest):
+   cada fantasma se saca de una hoja de un arbol elegido al azar.
+Validacion: validacion cruzada de 5 grupos por partido (gameId). Cada pase se predice con modelos que
+no vieron su partido, y esos mismos modelos generan sus fantasmas.
 """
 from pathlib import Path
 import time
-
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import (HistGradientBoostingClassifier, HistGradientBoostingRegressor,
+                              RandomForestRegressor)
+from sklearn.model_selection import GroupKFold
 
 CSV = Path(__file__).resolve().parent / "capturas.csv"
-K_A = 40          # vecinos del modelo A
-K_B = 60          # vecinos del modelo B (de ahi se muestrean los fantasmas)
 N_FANTASMAS = 30
+N_GRUPOS = 5
 SEED = 7
-EPS = 1e-3
-
 
 # ---------------------------------------------------------------- datos
 def cargar(path=CSV) -> pd.DataFrame:
@@ -31,109 +33,109 @@ def cargar(path=CSV) -> pd.DataFrame:
         d[f"{p}_vy"] = d[f"{p}_s"] * np.cos(r)
     d["qb_dx"] = d["qb_x"] - d["receptor_x"]
     d["qb_dy"] = d["qb_y"] - d["receptor_y"]
+    d["profundidad"] = d["receptor_x"] - d["linea_scrimmage_x"]
+    d["pase_dist"] = np.hypot(d["qb_dx"], d["qb_dy"])
+    d["gol"] = 120.0 - d["receptor_x"]
     return d.reset_index(drop=True)
-
 
 # variables de la jugada que no dependen del defensor
 JUGADA = ["receptor_vx", "receptor_vy", "receptor_y", "qb_dx", "qb_dy",
-          "dist_linea_scrimmage", "down", "yardas_por_jugar", "man", "defenders_in_box"]
-# variables del defensor respecto al receptor
-DEFENSOR = ["dx", "dy", "distancia", "defensor_vx", "defensor_vy"]
-# columnas objetivo del fantasma
+          "dist_linea_scrimmage", "down", "yardas_por_jugar", "man", "defenders_in_box",
+          "profundidad", "pase_dist", "gol", "receptor_s"]
+# variables extra del modelo B (posicion absoluta; no entran al A, que ya tiene profundidad y gol)
+JUGADA_B = JUGADA + ["receptor_x", "qb_x"]
+# columnas objetivo del fantasma (relativas al receptor)
 GHOST = ["dx", "dy", "defensor_vx", "defensor_vy"]
-# pesos por variable (tras estandarizar): el defensor pesa mas en A
-PESO_A = {"dx": 2.0, "dy": 2.0, "distancia": 1.5, "defensor_vx": 1.0, "defensor_vy": 1.0}
+# variables del defensor que usa el modelo A, calculadas igual para el real y para cada fantasma
+FEATURES_A = JUGADA + ["dx", "dy", "distancia", "defensor_vx", "defensor_vy", "rvx", "rvy", "defensor_s"]
 
+def features_a(base: pd.DataFrame, g: np.ndarray) -> np.ndarray:
+    """Matriz del modelo A para la jugada `base` (N filas) con defensor g (N, 4): dx, dy, vx, vy."""
+    f = base[JUGADA].copy()
+    f["dx"], f["dy"] = g[:, 0], g[:, 1]
+    f["distancia"] = np.hypot(g[:, 0], g[:, 1])
+    f["defensor_vx"], f["defensor_vy"] = g[:, 2], g[:, 3]
+    f["rvx"] = g[:, 2] - base["receptor_vx"].to_numpy()
+    f["rvy"] = g[:, 3] - base["receptor_vy"].to_numpy()
+    f["defensor_s"] = np.hypot(g[:, 2], g[:, 3])
+    return f[FEATURES_A].to_numpy(float)
 
-def _matriz(d, cols, mu, sd, pesos=None):
-    X = (d[cols].to_numpy(float) - mu) / sd
-    if pesos:
-        X = X * np.array([pesos.get(c, 1.0) for c in cols])
-    return X.astype(np.float32)
+# ---------------------------------------------------------------- muestreo por hojas del bosque
+def muestrear_hojas(rf, Xtr, Gtr, Xq, n, rng):
+    """n muestras de Gtr por fila de Xq: se elige un arbol al azar y una fila al azar de la hoja de Xq."""
+    Ltr, Lq = rf.apply(Xtr), rf.apply(Xq)
+    T = Ltr.shape[1]
+    out = np.zeros((len(Xq), n, Gtr.shape[1]))
+    arbol = rng.integers(0, T, (len(Xq), n))
+    for t in range(T):
+        qi, ni = np.nonzero(arbol == t)
+        if len(qi) == 0:
+            continue
+        orden = np.argsort(Ltr[:, t], kind="stable")
+        hojas = Ltr[orden, t]
+        lq = Lq[qi, t]
+        lo = np.searchsorted(hojas, lq, "left")
+        hi = np.searchsorted(hojas, lq, "right")
+        pick = lo + (rng.random(len(qi)) * (hi - lo)).astype(int)
+        out[qi, ni] = Gtr[orden[np.minimum(pick, len(orden) - 1)]]
+    return out
 
+def _clasificador():
+    return HistGradientBoostingClassifier(learning_rate=0.03, max_iter=200, min_samples_leaf=40,
+                                          max_depth=4, l2_regularization=1.0, random_state=SEED)
 
-# ---------------------------------------------------------------- kNN
-def _knn(Q, X, k, excluir=None, bloque=2000):
-    """Devuelve (indices, pesos normalizados) de los k vecinos de cada fila de Q.
-    excluir: indice en X que se descarta para cada fila de Q (leave-one-out)."""
-    n = len(Q)
-    idx = np.empty((n, k), dtype=np.int32)
-    w = np.empty((n, k), dtype=np.float32)
-    x2 = (X ** 2).sum(1)
-    for i in range(0, n, bloque):
-        q = Q[i:i + bloque]
-        d2 = (q ** 2).sum(1)[:, None] + x2[None, :] - 2 * q @ X.T
-        np.maximum(d2, 0, out=d2)
-        if excluir is not None:
-            d2[np.arange(len(q)), excluir[i:i + bloque]] = np.inf
-        part = np.argpartition(d2, k, axis=1)[:, :k]
-        dd = np.sqrt(np.take_along_axis(d2, part, 1))
-        ww = 1.0 / (dd + EPS)
-        idx[i:i + bloque] = part
-        w[i:i + bloque] = ww / ww.sum(1, keepdims=True)
-    return idx, w
+def _regresor():
+    return HistGradientBoostingRegressor(learning_rate=0.03, max_iter=200, min_samples_leaf=40,
+                                         max_depth=4, l2_regularization=1.0, random_state=SEED)
 
+def _bosque():
+    return RandomForestRegressor(n_estimators=100, min_samples_leaf=10, max_features=0.5, bootstrap=True,
+                                 max_samples=0.7, n_jobs=-1, random_state=SEED)
 
 class Modelo:
     def __init__(self, d: pd.DataFrame | None = None):
         self.d = cargar() if d is None else d
-        d = self.d
-        self.cols_a = JUGADA + DEFENSOR
-        self.mu_a = d[self.cols_a].mean().to_numpy(float)
-        self.sd_a = d[self.cols_a].std().replace(0, 1).to_numpy(float)
-        self.XA = _matriz(d, self.cols_a, self.mu_a, self.sd_a, PESO_A)
-        self.mu_b = d[JUGADA].mean().to_numpy(float)
-        self.sd_b = d[JUGADA].std().replace(0, 1).to_numpy(float)
-        self.XB = _matriz(d, JUGADA, self.mu_b, self.sd_b)
-        self.valor = d["valor"].to_numpy(np.float32)
-        self.comp = d["completo"].to_numpy(np.float32)
-        self.G = d[GHOST].to_numpy(np.float32)
-
-    # ----- Modelo A
-    def predecir_a(self, Q, excluir):
-        idx, w = _knn(Q, self.XA, K_A, excluir)
-        return (w * self.valor[idx]).sum(1), (w * self.comp[idx]).sum(1)
-
-    # ----- Modelo B
-    def muestrear_fantasmas(self, excluir, n=N_FANTASMAS, rng=None):
-        """Devuelve array (N, n, 4) con dx, dy, vx, vy de n fantasmas por pase."""
-        rng = rng or np.random.default_rng(SEED)
-        idx, w = _knn(self.XB, self.XB, K_B, excluir)
-        c = np.cumsum(w, 1)
-        u = rng.random((len(idx), n), dtype=np.float32) * c[:, -1:]
-        pick = np.minimum((u[:, :, None] > c[:, None, :]).sum(2), idx.shape[1] - 1)
-        return self.G[np.take_along_axis(idx, pick, 1)]
-
-    def _consulta_a(self, g, base):
-        """Construye features del modelo A para fantasmas g (N, n, 4) en los pases base."""
-        N, n, _ = g.shape
-        df = pd.DataFrame(np.repeat(self.d[JUGADA].to_numpy(float), n, 0), columns=JUGADA)
-        df["dx"] = g[:, :, 0].ravel()
-        df["dy"] = g[:, :, 1].ravel()
-        df["distancia"] = np.hypot(df["dx"], df["dy"])
-        df["defensor_vx"] = g[:, :, 2].ravel()
-        df["defensor_vy"] = g[:, :, 3].ravel()
-        return _matriz(df, self.cols_a, self.mu_a, self.sd_a, PESO_A)
+        self.G = self.d[GHOST].to_numpy(float)
+        self.fantasmas = None
 
     def ejecutar(self):
-        """Calcula esperado real y fantasma para todos los pases (leave-one-out)."""
-        N = len(self.d)
-        yo = np.arange(N)
-        er, pr = self.predecir_a(self.XA, yo)
-        g = self.muestrear_fantasmas(yo)
-        Q = self._consulta_a(g, None)
-        ef, pf = self.predecir_a(Q, np.repeat(yo, N_FANTASMAS))
-        ef = ef.reshape(N, -1)
-        pf = pf.reshape(N, -1)
-        out = self.d[["gameId", "playId", "semana", "resultado", "valor", "defensor_id",
-                      "defensor_nombre", "defensor_posicion", "equipo_defensa",
-                      "tipo_cobertura", "cobertura", "descripcion"]].copy()
+        """Calcula esperado real y fantasma para todos los pases con validacion cruzada por partido."""
+        d, G = self.d, self.G
+        N = len(d)
+        y, c = d["valor"].to_numpy(float), d["completo"].to_numpy(float)
+        rng = np.random.default_rng(SEED)
+        XA = features_a(d, G)
+        XB = d[JUGADA_B].to_numpy(float)
+        er, pr = np.zeros(N), np.zeros(N)
+        ef, pf = np.zeros(N), np.zeros(N)
+        fant = np.zeros((N, N_FANTASMAS, 4))
+        for tr, te in GroupKFold(N_GRUPOS).split(XA, c, d["gameId"].to_numpy()):
+            clf = _clasificador().fit(XA[tr], c[tr])
+            comp = tr[c[tr] == 1]
+            reg = _regresor().fit(XA[comp], y[comp])
+            bosque = _bosque().fit(XB[tr], G[tr])
+
+            def predecir(X):
+                p = clf.predict_proba(X)[:, 1]
+                return p * reg.predict(X), p
+
+            er[te], pr[te] = predecir(XA[te])
+            g = muestrear_hojas(bosque, XB[tr], G[tr], XB[te], N_FANTASMAS, rng)
+            fant[te] = g
+            base = d.iloc[te]
+            rep = base.loc[base.index.repeat(N_FANTASMAS)]
+            e, p = predecir(features_a(rep, g.reshape(-1, 4)))
+            ef[te] = e.reshape(len(te), -1).mean(1)
+            pf[te] = p.reshape(len(te), -1).mean(1)
+        out = d[["gameId", "playId", "semana", "resultado", "valor", "defensor_id",
+                 "defensor_nombre", "defensor_posicion", "equipo_defensa",
+                 "tipo_cobertura", "cobertura", "descripcion"]].copy()
         out["esperado_real"] = er
         out["p_completo_real"] = pr
-        out["esperado_fantasma"] = ef.mean(1)
-        out["p_completo_fantasma"] = pf.mean(1)
-        out["delta"] = out["esperado_fantasma"] - out["esperado_real"]
-        self.fantasmas = g
+        out["esperado_fantasma"] = ef
+        out["p_completo_fantasma"] = pf
+        out["delta"] = ef - er
+        self.fantasmas = fant
         return out
 
     def metricas(self, res):
@@ -155,7 +157,6 @@ class Modelo:
         return [{"x": float(r.receptor_x + a), "y": float(r.receptor_y + b), "peso": 1.0 / n}
                 for a, b, _, _ in g]
 
-
 def correr():
     t = time.time()
     m = Modelo()
@@ -163,7 +164,6 @@ def correr():
     met = m.metricas(res)
     met["segundos"] = time.time() - t
     return m, res, met
-
 
 if __name__ == "__main__":
     m, res, met = correr()
@@ -173,5 +173,4 @@ if __name__ == "__main__":
     ag = (res.groupby(["defensor_id", "defensor_nombre", "defensor_posicion"])["delta"]
           .agg(["count", "mean"]).query("count >= 15").sort_values("mean", ascending=False))
     print("defensores con >=15 pases:", len(ag))
-    print(ag.head(8).to_string())
-    print(ag.tail(8).to_string())
+    print(ag.head(5)); print(ag.tail(5))
