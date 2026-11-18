@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { colorDelta, Defensor, fmt, JugadaResumen, PerfilDefensor, useApi } from './api'
+import { colorDelta, Defensor, fmt, nombreEquipo, JugadaResumen, PerfilDefensor, useApi } from './api'
 import Estado from './Estado'
 
 function Kpi({ titulo, valor, clase = '' }: { titulo: string; valor: string; clase?: string }) {
@@ -40,7 +40,7 @@ function Selector() {
         {data?.map((d) => (
           <li key={d.nflId}>
             <a className="block rounded border bg-white p-2 hover:bg-green-50" href={`#/defensor/${d.nflId}`}>
-              {d.nombre} <span className="text-gray-500">({d.equipo} · {d.posicion})</span>
+              {d.nombre} <span className="text-gray-500">({nombreEquipo(d.equipo)} · {d.posicion})</span>
             </a>
           </li>
         ))}
@@ -63,7 +63,7 @@ export default function Perfil({ id }: { id?: string }) {
     <div className="space-y-4">
       <div>
         <h2 className="text-2xl font-bold">{d.nombre}</h2>
-        <p className="text-gray-600">{d.equipo} · {d.posicion}</p>
+        <p className="text-gray-600">{nombreEquipo(d.equipo)} · {d.posicion}</p>
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Kpi titulo="Pases como defensor más cercano" valor={String(d.plays)} />

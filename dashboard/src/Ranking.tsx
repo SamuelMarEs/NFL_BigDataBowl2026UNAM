@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { colorDelta, Defensor, fmt, useApi } from './api'
+import { colorDelta, Defensor, fmt, nombreEquipo, useApi } from './api'
 import Estado from './Estado'
 
 const POSICIONES = ['CB', 'FS', 'SS', 'ILB', 'MLB', 'OLB']
@@ -79,7 +79,7 @@ export default function Ranking() {
           <select className="rounded border p-1" value={equipo} onChange={(e) => setEquipo(e.target.value)}>
             <option value="">Todos</option>
             {equipos.map((e) => (
-              <option key={e} value={e}>{e}</option>
+              <option key={e} value={e}>{nombreEquipo(e)}</option>
             ))}
           </select>
         </label>
@@ -136,7 +136,7 @@ export default function Ranking() {
                       <td className="p-2 font-medium">
                         <a className="text-green-800 underline" href={`#/defensor/${d.nflId}`}>{d.nombre}</a>
                       </td>
-                      <td className="p-2">{d.equipo}</td>
+                      <td className="p-2">{nombreEquipo(d.equipo)}</td>
                       <td className="p-2">{d.posicion}</td>
                       <td className="p-2">{d.plays}</td>
                       <td className={`p-2 font-semibold ${colorDelta(d.delta_medio)}`}>{fmt(d.delta_medio)}</td>

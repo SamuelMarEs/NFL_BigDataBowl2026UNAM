@@ -22,7 +22,7 @@ momento del lanzamiento y no en la captura. Detalle en `.kiro/steering/hallazgos
 - [x] **T6a Perfil.** "Añade la pantalla de perfil de defensor: KPIs, barras man vs zone y tendencia por semana con Recharts, panel boxscore (intercepciones, pases defendidos, fumbles forzados) y listas de mejores y peores jugadas. Consume api/defenders/{id}. Verifica con npm run build."
 - [x] **T6b Vista de jugada.** "Añade una vista de jugada con un campo de fútbol en SVG que muestre línea de scrimmage, primer down, QB, receptor, defensor real y los puntos fantasma (tamaño según peso), con el delta y las probabilidades de completo. Consume api/plays/{gameId}/{playId}. Rutas relativas sin diagonal inicial."
 - [x] **T6c Equipos y metodología.** "Añade una pantalla de equipos (api/teams) y una de metodología (api/metodologia) que explique en lenguaje simple el método de fantasmas y avise que se evalúa al defensor en el momento del lanzamiento porque el tracking termina 0.5 s después."
-- [ ] **T9 Demo.** Guion de 3 minutos: problema, idea del fantasma, ejemplo de jugada, ranking, límites del método, conclusión para coaches y reclutadores.
+- [x] **T9 Demo.** Guion de 3 minutos: problema, idea del fantasma, ejemplo de jugada, ranking, límites del método, conclusión para coaches y reclutadores.
 
 ## Orden y dependencias
 T1 -> (T5, T6 de Keily en paralelo con T2, T3 de Samuel) -> T4 -> T7 -> T8 si sobra tiempo.

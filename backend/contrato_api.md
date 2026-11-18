@@ -40,6 +40,15 @@ Momento del lanzamiento (último frame del tracking). Coordenadas normalizadas (
  "linea_scrimmage_x": 45.0, "primer_down_x": 55.0}
 ```
 
+## GET api/plays/{gameId}/{playId}/trayectoria
+Tracking de la jugada del snap al último frame (10 fps), normalizado a ataque hacia x creciente. Se lee de `data/tracking` al responder.
+```json
+{"gameId": 1, "playId": 2, "equipo_ataque": "TB", "equipo_defensa": "DAL", "frame_snap": 0, "frame_lanzamiento": 34,
+ "n_frames": 38, "fps": 10, "balon": [{"x": 41.5, "y": 23.9}],
+ "jugadores": [{"nflId": 1, "nombre": "...", "equipo": "TB", "lado": "ataque|defensa", "posicion": "WR",
+                "rol": "qb|receptor|defensor|otro", "x": [..n_frames..], "y": [..n_frames..]}]}
+```
+Los fantasmas no tienen trayectoria medida: el frontend los interpola desde el defensor real hasta su posición final.
 ## GET api/metodologia
 `{"rmse_yardas": 0.0, "brier_completo": 0.0, "n_pases": 0, "min_plays": 15, "max_dist_defensor": 10,
  "validacion": "leave-one-out", "momento": "lanzamiento (0.5 s tras pass_forward)"}`

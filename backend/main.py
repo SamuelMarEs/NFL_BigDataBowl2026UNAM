@@ -7,6 +7,7 @@ Formato de cada ruta: backend/contrato_api.md (fuente de verdad con el frontend)
 import os
 import threading
 from pathlib import Path
+from functools import lru_cache
 from typing import Literal
 import numpy as np
 import pandas as pd
@@ -26,6 +27,8 @@ def cargar_env():
 
 cargar_env()
 from . import informe, modelo  # noqa: E402
+from .precompute import normalizar  # noqa: E402
+DATA = Path(__file__).resolve().parent.parent / "data"
 app = FastAPI(title="Hackathon NFL UNAM")
 BOX_CSV = Path(__file__).resolve().parent / "eda" / "defensores_resultados.csv"
 MIN_PLAYS = 15
@@ -107,6 +110,26 @@ class Jugada(BaseModel):
     delta: float
     linea_scrimmage_x: float
     primer_down_x: float
+class JugadorTray(BaseModel):
+    nflId: int
+    nombre: str
+    equipo: str
+    lado: Literal["ataque", "defensa"]
+    posicion: str
+    rol: Literal["qb", "receptor", "defensor", "otro"]
+    x: list[float]
+    y: list[float]
+class Trayectoria(BaseModel):
+    gameId: int
+    playId: int
+    equipo_ataque: str
+    equipo_defensa: str
+    frame_snap: int
+    frame_lanzamiento: int
+    n_frames: int
+    fps: int
+    balon: list[PuntoXY]
+    jugadores: list[JugadorTray]
 class Metodologia(BaseModel):
     rmse_yardas: float
     brier_completo: float
@@ -264,6 +287,61 @@ def ver_jugada(game_id: int, play_id: int) -> dict:
         "linea_scrimmage_x": float(r["linea_scrimmage_x"]),
         "primer_down_x": float(r["linea_scrimmage_x"] + r["yardas_por_jugar"]),
     }
+@lru_cache(maxsize=1)
+def _tablas_estaticas():
+    d = Path(__file__).resolve().parent.parent / "data"
+    pj = pd.read_csv(d / "players.csv", usecols=["nflId", "displayName", "officialPosition"]).set_index("nflId")
+    return pj
+@app.get("/api/plays/{game_id}/{play_id}/trayectoria", response_model=Trayectoria)
+def trayectoria(game_id: int, play_id: int) -> dict:
+    """Tracking completo de la jugada (del snap al ultimo frame), normalizado a ataque hacia x creciente."""
+    _listo()
+    i = E.indice.get((game_id, play_id))
+    if i is None:
+        raise HTTPException(404, "Jugada no encontrada")
+    r = E.modelo.d.iloc[i]
+    f = DATA / "tracking" / f"tracking_{game_id}.csv"
+    if not f.exists():
+        raise HTTPException(404, "Tracking no disponible")
+    t = pd.read_csv(f)
+    t = t[t["playId"] == play_id]
+    if t.empty:
+        raise HTTPException(404, "Tracking no disponible")
+    t = normalizar(t, bool((t["playDirection"] == "left").iloc[0]))
+    eventos = t[t["event"].isin(["ball_snap"])]["frameId"]
+    ultimo = int(t["frameId"].max())
+    snap = int(eventos.min()) if len(eventos) else int(t["frameId"].min())
+    lanz = t[t["event"] == "pass_forward"]["frameId"]
+    lanz = int(lanz.min()) if len(lanz) else ultimo
+    t = t[(t["frameId"] >= snap) & (t["frameId"] <= ultimo)]
+    frames = list(range(snap, ultimo + 1))
+    pos = _tablas_estaticas()
+    pff = pd.read_csv(DATA / "pffScoutingData.csv", usecols=["gameId", "playId", "nflId", "pff_role"])
+    roles = pff[(pff["gameId"] == game_id) & (pff["playId"] == play_id)].set_index("nflId")["pff_role"]
+    eq_def = str(r["equipo_defensa"])
+    equipos = [e for e in t["team"].dropna().unique() if e != "football"]
+    eq_atq = next((e for e in equipos if e != eq_def), "")
+    b = t[t["team"] == "football"].set_index("frameId").reindex(frames).ffill().bfill()
+    balon = [{"x": float(x), "y": float(y)} for x, y in zip(b["x"], b["y"])]
+    jug = []
+    for nid, g in t[t["team"] != "football"].dropna(subset=["nflId"]).groupby("nflId"):
+        g = g.set_index("frameId").reindex(frames).ffill().bfill()
+        nid = int(nid)
+        rol = "otro"
+        if nid == int(r["receptor_id"]):
+            rol = "receptor"
+        elif nid == int(r["defensor_id"]):
+            rol = "defensor"
+        elif roles.get(nid) == "Pass":
+            rol = "qb"
+        eq = str(g["team"].iloc[0])
+        jug.append({"nflId": nid, "nombre": str(pos["displayName"].get(nid, "")), "equipo": eq,
+                    "lado": "defensa" if eq == eq_def else "ataque",
+                    "posicion": str(pos["officialPosition"].get(nid, "")), "rol": rol,
+                    "x": [round(float(v), 2) for v in g["x"]], "y": [round(float(v), 2) for v in g["y"]]})
+    return {"gameId": game_id, "playId": play_id, "equipo_ataque": eq_atq, "equipo_defensa": eq_def,
+            "frame_snap": 0, "frame_lanzamiento": max(0, min(lanz - snap, len(frames) - 1)),
+            "n_frames": len(frames), "fps": 10, "balon": balon, "jugadores": jug}
 @app.get("/api/metodologia", response_model=Metodologia)
 def metodologia() -> dict:
     _listo()

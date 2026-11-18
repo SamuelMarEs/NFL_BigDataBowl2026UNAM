@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { colorDelta, Equipo, fmt, useApi } from './api'
+import { colorDelta, Equipo, fmt, nombreEquipo, useApi } from './api'
 import Estado from './Estado'
 
 export default function Equipos() {
@@ -18,7 +18,7 @@ export default function Equipos() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="equipo" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip labelFormatter={(l) => nombreEquipo(String(l))} />
                 <ReferenceLine y={0} stroke="#666" />
                 <Bar dataKey="delta_medio" fill="#2F7D4F" />
               </BarChart>
@@ -31,7 +31,7 @@ export default function Equipos() {
             <tbody>
               {filas.map((e) => (
                 <tr key={e.equipo} className="border-t">
-                  <td className="p-2 font-medium">{e.equipo}</td>
+                  <td className="p-2 font-medium">{nombreEquipo(e.equipo)}</td>
                   <td className="p-2">{e.plays}</td>
                   <td className={`p-2 ${colorDelta(e.delta_medio)}`}>{fmt(e.delta_medio)}</td>
                   <td className="p-2">{e.yardas_esperadas_concedidas.toFixed(1)}</td>

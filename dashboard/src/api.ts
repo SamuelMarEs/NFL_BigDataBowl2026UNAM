@@ -60,6 +60,28 @@ export interface Jugada {
   linea_scrimmage_x: number
   primer_down_x: number
 }
+export interface JugadorTray {
+  nflId: number
+  nombre: string
+  equipo: string
+  lado: 'ataque' | 'defensa'
+  posicion: string
+  rol: 'qb' | 'receptor' | 'defensor' | 'otro'
+  x: number[]
+  y: number[]
+}
+export interface Trayectoria {
+  gameId: number
+  playId: number
+  equipo_ataque: string
+  equipo_defensa: string
+  frame_snap: number
+  frame_lanzamiento: number
+  n_frames: number
+  fps: number
+  balon: Punto[]
+  jugadores: JugadorTray[]
+}
 export interface Metodologia {
   rmse_yardas: number
   brier_completo: number
@@ -105,3 +127,16 @@ export function useApi<T>(ruta: string | null) {
 
 export const fmt = (n: number, d = 2) => (n > 0 ? '+' : '') + n.toFixed(d)
 export const colorDelta = (n: number) => (n >= 0 ? 'text-green-700' : 'text-red-600')
+
+export const EQUIPOS: Record<string, string> = {
+  ARI: 'Arizona Cardinals', ATL: 'Atlanta Falcons', BAL: 'Baltimore Ravens', BUF: 'Buffalo Bills',
+  CAR: 'Carolina Panthers', CHI: 'Chicago Bears', CIN: 'Cincinnati Bengals', CLE: 'Cleveland Browns',
+  DAL: 'Dallas Cowboys', DEN: 'Denver Broncos', DET: 'Detroit Lions', GB: 'Green Bay Packers',
+  HOU: 'Houston Texans', IND: 'Indianapolis Colts', JAX: 'Jacksonville Jaguars', KC: 'Kansas City Chiefs',
+  LA: 'Los Angeles Rams', LAC: 'Los Angeles Chargers', LV: 'Las Vegas Raiders', MIA: 'Miami Dolphins',
+  MIN: 'Minnesota Vikings', NE: 'New England Patriots', NO: 'New Orleans Saints', NYG: 'New York Giants',
+  NYJ: 'New York Jets', PHI: 'Philadelphia Eagles', PIT: 'Pittsburgh Steelers', SEA: 'Seattle Seahawks',
+  SF: 'San Francisco 49ers', TB: 'Tampa Bay Buccaneers', TEN: 'Tennessee Titans', WAS: 'Washington Commanders',
+}
+// "Dallas Cowboys (DAL)"; si la abreviatura no se conoce, se deja tal cual.
+export const nombreEquipo = (abrev: string) => (EQUIPOS[abrev] ? `${EQUIPOS[abrev]} (${abrev})` : abrev)
