@@ -45,6 +45,3 @@ $RECYCLE.BIN/
 # Logs
 *.log
 setup-log.txt
-
-# PDF
-*.pdf
