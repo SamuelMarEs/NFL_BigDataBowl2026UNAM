@@ -35,7 +35,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <header className="bg-green-800 text-white">
-        <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-4 p-3">
+        <nav className="flex w-full flex-wrap items-center gap-4 px-6 py-3">
           <span className="font-bold">NFL Ghosts</span>
           {MENU.map((m) => (
             <a key={m.href} href={m.href} className={hash.startsWith(m.href) ? 'underline' : 'opacity-80 hover:opacity-100'}>
@@ -44,7 +44,7 @@ export default function App() {
           ))}
         </nav>
       </header>
-      <main className="mx-auto max-w-5xl p-4">{pantalla}</main>
+      <main className="w-full px-6 py-5">{pantalla}</main>
     </div>
   )
 }

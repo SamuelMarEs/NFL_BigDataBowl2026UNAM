@@ -82,6 +82,31 @@ export interface Trayectoria {
   balon: Punto[]
   jugadores: JugadorTray[]
 }
+export interface Partido {
+  gameId: number
+  semana: number
+  local: string
+  visitante: string
+  jugadas: number
+}
+export interface JugadaLista {
+  gameId: number
+  playId: number
+  semana: number
+  local: string
+  visitante: string
+  cuarto: number
+  reloj: string
+  down: number
+  yardas_por_jugar: number
+  equipo_ataque: string
+  equipo_defensa: string
+  receptor: string
+  defensor: string
+  resultado: 'C' | 'I' | 'IN'
+  descripcion: string
+  delta: number
+}
 export interface Metodologia {
   rmse_yardas: number
   brier_completo: number

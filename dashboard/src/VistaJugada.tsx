@@ -1,24 +1,34 @@
-import { useEffect, useState } from 'react'
-import { colorDelta, fmt, Jugada, JugadorTray, nombreEquipo, Trayectoria, useApi } from './api'
+import { ReactNode, useEffect, useMemo, useState } from 'react'
+import { colorDelta, Defensor, fmt, Jugada, JugadaLista, JugadorTray, nombreEquipo, Partido, Trayectoria, useApi } from './api'
 import Estado from './Estado'
 
 const pct = (p: number) => `${(p * 100).toFixed(0)}%`
 const RESULTADO: Record<string, string> = { C: 'Completo', I: 'Incompleto', IN: 'Intercepción' }
 
+// Jugadores de la defensa con perfil: clic lleva a #/defensor/{nflId}. El resto solo muestra el nombre al pasar el cursor.
+function Enlace({ p, activo, children }: { p: JugadorTray; activo: boolean; children: ReactNode }) {
+  const titulo = `${p.nombre} (${p.posicion})${p.lado === 'defensa' && activo ? ' · clic para ver su perfil' : ''}`
+  if (p.lado !== 'defensa' || !activo) return <g><title>{titulo}</title>{children}</g>
+  return (
+    <a href={`#/defensor/${p.nflId}`} style={{ cursor: 'pointer' }}>
+      <title>{titulo}</title>
+      {children}
+    </a>
+  )
+}
 const lerp = (a: number[], f: number) => {
   const i = Math.min(Math.floor(f), a.length - 1)
   const k = Math.min(i + 1, a.length - 1)
   return a[i] + (a[k] - a[i]) * (f - i)
 }
 const suave = (u: number) => u * u * (3 - 2 * u)
-function Campo({ j, tray, f }: { j: Jugada; tray: Trayectoria | null; f: number }) {
-  const xs = [j.qb.x, j.receptor.x, j.defensor.x, j.linea_scrimmage_x, j.primer_down_x, ...j.fantasmas.map((p) => p.x)]
-  if (tray) for (const p of tray.jugadores) xs.push(...p.x)
-  const x0 = Math.floor(Math.min(...xs) - 6)
-  const x1 = Math.ceil(Math.max(...xs) + 6)
+function Campo({ j, tray, f, perfiles }: { j: Jugada; tray: Trayectoria | null; f: number; perfiles: Set<number> }) {
+  // Campo completo: 120 yardas (zonas de anotación de 0 a 10 y de 110 a 120).
+  const x0 = 0
+  const x1 = 120
   const maxPeso = Math.max(...j.fantasmas.map((p) => p.peso), 0.0001)
   const lineas: number[] = []
-  for (let x = Math.ceil(x0 / 5) * 5; x <= x1; x += 5) lineas.push(x)
+  for (let x = 10; x <= 110; x += 5) lineas.push(x)
   // El eje y del campo crece hacia arriba; en SVG crece hacia abajo, se invierte con 53.3 - y.
   const Y = (y: number) => 53.3 - y
   const def = tray?.jugadores.find((p) => p.rol === 'defensor')
@@ -36,11 +46,23 @@ function Campo({ j, tray, f }: { j: Jugada; tray: Trayectoria | null; f: number 
   const color = (p: JugadorTray) =>
     p.rol === 'receptor' ? '#f97316' : p.rol === 'defensor' ? '#dc2626' : p.rol === 'qb' ? '#111827' : p.lado === 'ataque' ? '#93c5fd' : '#fca5a5'
   return (
-    <svg viewBox={`${x0} 0 ${x1 - x0} 53.3`} className="w-full rounded border bg-green-700" role="img" aria-label="Campo de fútbol">
+    <svg viewBox={`${x0} 0 ${x1 - x0} 53.3`} className="mx-auto w-full rounded border bg-green-700" style={{ maxWidth: `calc(66vh * ${(x1 - x0) / 53.3})` }} role="img" aria-label="Campo de fútbol">
+      <rect x={0} y={0} width={10} height={53.3} fill="#1d4ed8" fillOpacity={0.75} />
+      <rect x={110} y={0} width={10} height={53.3} fill="#b91c1c" fillOpacity={0.75} />
+      <text transform="translate(5.8 26.65) rotate(-90)" fontSize={2.6} fontWeight="bold" fill="white" textAnchor="middle">
+        {tray ? nombreEquipo(tray.equipo_ataque).toUpperCase() : 'OFENSIVA'}
+      </text>
+      <text transform="translate(114.2 26.65) rotate(90)" fontSize={2.6} fontWeight="bold" fill="white" textAnchor="middle">
+        {tray ? nombreEquipo(tray.equipo_defensa).toUpperCase() : 'DEFENSA'}
+      </text>
+      <line x1={10} x2={10} y1={0} y2={53.3} stroke="white" strokeWidth={0.4} />
+      <line x1={110} x2={110} y1={0} y2={53.3} stroke="white" strokeWidth={0.4} />
       {lineas.map((x) => (
         <g key={x}>
           <line x1={x} x2={x} y1={0} y2={53.3} stroke="white" strokeOpacity={0.35} strokeWidth={0.15} />
-          <text x={x} y={52} fontSize={1.8} fill="white" fillOpacity={0.6} textAnchor="middle">{x}</text>
+          {x % 10 === 0 && x > 10 && x < 110 && (
+            <text x={x} y={52} fontSize={2} fill="white" fillOpacity={0.7} textAnchor="middle">{x <= 60 ? x - 10 : 110 - x}</text>
+          )}
         </g>
       ))}
       <line x1={j.linea_scrimmage_x} x2={j.linea_scrimmage_x} y1={0} y2={53.3} stroke="#2563eb" strokeWidth={0.35} />
@@ -52,9 +74,9 @@ function Campo({ j, tray, f }: { j: Jugada; tray: Trayectoria | null; f: number 
       {tray ? (
         <>
           {tray.jugadores.filter((p) => p.rol === 'otro').map((p) => (
-            <circle key={p.nflId} cx={lerp(p.x, f)} cy={Y(lerp(p.y, f))} r={0.8} fill={color(p)} stroke="white" strokeWidth={0.15}>
-              <title>{`${p.nombre} (${p.posicion})`}</title>
-            </circle>
+            <Enlace key={p.nflId} p={p} activo={perfiles.has(p.nflId)}>
+              <circle cx={lerp(p.x, f)} cy={Y(lerp(p.y, f))} r={0.8} fill={color(p)} stroke="white" strokeWidth={0.15} />
+            </Enlace>
           ))}
           {tray.jugadores.filter((p) => p.rol !== 'otro').map((p) => (
             p.rol === 'qb' ? (
@@ -62,9 +84,9 @@ function Campo({ j, tray, f }: { j: Jugada; tray: Trayectoria | null; f: number 
                 <title>{`${p.nombre} (QB)`}</title>
               </rect>
             ) : (
-              <circle key={p.nflId} cx={lerp(p.x, f)} cy={Y(lerp(p.y, f))} r={1.1} fill={color(p)} stroke="white" strokeWidth={0.2}>
-                <title>{`${p.nombre} (${p.posicion})`}</title>
-              </circle>
+              <Enlace key={p.nflId} p={p} activo={perfiles.has(p.nflId)}>
+                <circle cx={lerp(p.x, f)} cy={Y(lerp(p.y, f))} r={1.1} fill={color(p)} stroke="white" strokeWidth={0.2} />
+              </Enlace>
             )
           ))}
           {balon && <ellipse cx={balon.x} cy={Y(balon.y)} rx={0.9} ry={0.55} fill="#78350f" stroke="white" strokeWidth={0.15} />}
@@ -81,6 +103,8 @@ function Campo({ j, tray, f }: { j: Jugada; tray: Trayectoria | null; f: number 
 }
 function Animacion({ j }: { j: Jugada }) {
   const { data: tray } = useApi<Trayectoria>(`api/plays/${j.gameId}/${j.playId}/trayectoria`)
+  const { data: defensores } = useApi<Defensor[]>('api/defenders?min_plays=0')
+  const perfiles = useMemo(() => new Set((defensores ?? []).map((d) => d.nflId)), [defensores])
   const [f, setF] = useState(0)
   const [jugando, setJugando] = useState(true)
   const [vel, setVel] = useState(1)
@@ -111,8 +135,8 @@ function Animacion({ j }: { j: Jugada }) {
   const lanz = tray?.frame_lanzamiento ?? 0
   const fase = !tray ? '' : f < lanz ? 'Antes del lanzamiento' : 'Balón en el aire'
   return (
-    <div>
-      <Campo j={j} tray={tray} f={f} />
+    <div className="mx-auto w-full max-w-6xl">
+      <Campo j={j} tray={tray} f={f} perfiles={perfiles} />
       {tray && (
         <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
           <button className="rounded bg-green-700 px-3 py-1 text-white" onClick={() => (f >= n ? reiniciar() : setJugando(!jugando))}>
@@ -154,6 +178,8 @@ function Leyenda() {
       {item('#93c5fd', 'Ofensiva')}
       {item('#fca5a5', 'Defensiva')}
       {item('#78350f', 'Balón')}
+      {item('#1d4ed8', 'Zona de anotación de la ofensiva', 'q')}
+      {item('#b91c1c', 'Zona de anotación de la defensa (hacia donde ataca la ofensiva)', 'q')}
       {item('#f97316', 'Receptor')}
       {item('#dc2626', 'Defensor real')}
       {item('#ffffff', 'Fantasmas (tamaño = peso)')}
@@ -199,28 +225,110 @@ function Detalle({ gameId, playId }: { gameId: string; playId: string }) {
   )
 }
 
+const ORDINAL = ['', '1.er', '2.º', '3.er', '4.º']
+const CUARTOS = ['', '1.er cuarto', '2.º cuarto', '3.er cuarto', '4.º cuarto', 'Tiempo extra']
+const COLOR_RES: Record<string, string> = { C: 'bg-green-100 text-green-800', I: 'bg-gray-100 text-gray-700', IN: 'bg-red-100 text-red-700' }
+function Buscador() {
+  const { data: partidos } = useApi<Partido[]>('api/games')
+  const [partido, setPartido] = useState('')
+  const [cuarto, setCuarto] = useState('')
+  const [down, setDown] = useState('')
+  const [resultado, setResultado] = useState('')
+  const [texto, setTexto] = useState('')
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setQ(texto.trim()), 300)
+    return () => clearTimeout(t)
+  }, [texto])
+  const params = new URLSearchParams()
+  if (partido) params.set('game_id', partido)
+  if (cuarto) params.set('quarter', cuarto)
+  if (down) params.set('down', down)
+  if (resultado) params.set('resultado', resultado)
+  if (q) params.set('defensor', q)
+  const { data: jugadas, error } = useApi<JugadaLista[]>(`api/plays?${params.toString()}`)
+  const campo = 'rounded border p-1'
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-3 text-sm">
+        <label className="flex flex-col">Partido
+          <select className={campo} value={partido} onChange={(e) => setPartido(e.target.value)}>
+            <option value="">Todos los partidos</option>
+            {(partidos ?? []).map((p) => (
+              <option key={p.gameId} value={p.gameId}>
+                Semana {p.semana} · {p.visitante} @ {p.local}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col">Cuarto
+          <select className={campo} value={cuarto} onChange={(e) => setCuarto(e.target.value)}>
+            <option value="">Todos</option>
+            {[1, 2, 3, 4, 5].map((c) => <option key={c} value={c}>{CUARTOS[c]}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col">Intento (down)
+          <select className={campo} value={down} onChange={(e) => setDown(e.target.value)}>
+            <option value="">Todos</option>
+            {[1, 2, 3, 4].map((d) => <option key={d} value={d}>{ORDINAL[d]} intento</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col">Resultado
+          <select className={campo} value={resultado} onChange={(e) => setResultado(e.target.value)}>
+            <option value="">Todos</option>
+            <option value="C">Completo</option>
+            <option value="I">Incompleto</option>
+            <option value="IN">Intercepción</option>
+          </select>
+        </label>
+        <label className="flex flex-col">Jugador (defensor o receptor)
+          <input className={campo} placeholder="Ej. Diggs" value={texto} onChange={(e) => setTexto(e.target.value)} />
+        </label>
+      </div>
+      {!jugadas ? (
+        <Estado data={jugadas} error={error} />
+      ) : jugadas.length === 0 ? (
+        <p className="text-gray-500">Ninguna jugada coincide con esos filtros.</p>
+      ) : (
+        <>
+          <p className="text-sm text-gray-600">{jugadas.length} jugadas{jugadas.length === 200 ? ' (se muestran las primeras 200; afina los filtros)' : ''}. Elige una para verla.</p>
+          <ul className="divide-y rounded border bg-white">
+            {jugadas.map((j) => (
+              <li key={`${j.gameId}-${j.playId}`}>
+                <a className="block p-3 hover:bg-green-50" href={`#/jugada/${j.gameId}/${j.playId}`}>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-semibold">{CUARTOS[j.cuarto]} · {j.reloj}</span>
+                    <span className="text-gray-600">{ORDINAL[j.down]} y {j.yardas_por_jugar}</span>
+                    <span className={`rounded px-2 py-0.5 text-xs ${COLOR_RES[j.resultado]}`}>{RESULTADO[j.resultado]}</span>
+                    <span className={`ml-auto font-medium ${colorDelta(j.delta)}`}>Delta {fmt(j.delta)}</span>
+                  </div>
+                  <div className="text-sm text-gray-700">
+                    {nombreEquipo(j.equipo_ataque)} ataca a {nombreEquipo(j.equipo_defensa)} · {j.receptor} (receptor) vs {j.defensor} (defensor)
+                    {!partido && <span className="text-gray-500"> · Semana {j.semana}, {j.visitante} @ {j.local}</span>}
+                  </div>
+                  <div className="truncate text-xs text-gray-500">{j.descripcion}</div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  )
+}
 export default function VistaJugada({ gameId, playId }: { gameId?: string; playId?: string }) {
-  const [g, setG] = useState(gameId ?? '2021090900')
-  const [p, setP] = useState(playId ?? '97')
+  const hay = gameId && playId
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Vista de jugada</h2>
-      <form
-        className="flex flex-wrap items-end gap-2 text-sm"
-        onSubmit={(e) => {
-          e.preventDefault()
-          window.location.hash = `#/jugada/${g}/${p}`
-        }}
-      >
-        <label className="flex flex-col">gameId
-          <input className="rounded border px-2 py-1" value={g} onChange={(e) => setG(e.target.value)} />
-        </label>
-        <label className="flex flex-col">playId
-          <input className="rounded border px-2 py-1" value={p} onChange={(e) => setP(e.target.value)} />
-        </label>
-        <button className="rounded bg-green-700 px-3 py-1 text-white" type="submit">Ver jugada</button>
-      </form>
-      {gameId && playId ? <Detalle key={`${gameId}-${playId}`} gameId={gameId} playId={playId} /> : <p className="text-gray-500">Escribe un gameId y un playId, o entra desde el perfil de un defensor.</p>}
+      {hay ? (
+        <>
+          <a className="text-sm text-green-800 underline" href="#/jugada">← Buscar otra jugada</a>
+          <Detalle key={`${gameId}-${playId}`} gameId={gameId} playId={playId} />
+        </>
+      ) : (
+        <Buscador />
+      )}
     </div>
   )
 }
