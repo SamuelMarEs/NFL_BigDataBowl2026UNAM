@@ -258,3 +258,8 @@ def ver_jugada(game_id: int, play_id: int) -> dict:
 def metodologia() -> dict:
     _listo()
     return E.metodologia
+# Sirve el build del dashboard en la misma URL y puerto que la API (al final, para no tapar /api ni /health).
+_DIST = Path(__file__).resolve().parent.parent / "dashboard" / "dist"
+if _DIST.is_dir():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="dashboard")
