@@ -95,10 +95,37 @@ Stop-Process -Id <PID>
 - `backend/capturas.csv` ya está versionado. Solo hace falta regenerarlo si cambia la lógica de extracción:
   `.venv/bin/python backend/precompute.py` (~130 s, lee `data/tracking/`).
 - En Windows usa `.venv\Scripts\uvicorn` y `.venv\Scripts\python` en lugar de `.venv/bin/...` (ver la sección Windows).
-- IA opcional: `GET api/defenders/{id}/informe` intenta redactar el informe con Amazon Bedrock (Nova, Strands Agents).
-  Si no hay llaves o falla, devuelve una plantilla con las mismas cifras (`generado_con_ia: false`). Para probarla en
-  local copia `.env.example` a `.env` y pega las llaves temporales del workshop (`.env` no se versiona ni se entrega).
-  En AWS el rol de la tarea firma las llamadas y no se usan llaves.
+- La IA es opcional (ver la sección siguiente). La app funciona completa sin ella.
+- Si el dashboard se abre mientras la API calcula, muestra "Cargando…" y reintenta solo cada 3 s.
+
+## IA opcional (informe por defensor con Amazon Bedrock)
+`GET api/defenders/{nflId}/informe` redacta un párrafo en español para coaches y reclutadores con Amazon Nova
+(Bedrock) mediante Strands Agents (`backend/informe.py`). El modelo solo recibe las cifras del defensor (delta,
+error estándar, man/zone, boxscore) y se le pide no inventar datos. La respuesta es
+`{"texto": "...", "generado_con_ia": true|false}`.
+
+Si la IA no está disponible (sin llaves, llaves caducadas, sin acceso al modelo, sin red o más de 20 s de espera),
+la API devuelve una plantilla con las mismas cifras y `generado_con_ia: false`. La app nunca depende de la IA.
+
+### Activarla en local
+1. Copia `.env.example` a `.env` en la raíz y pega las llaves temporales del workshop
+   (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`). Valen unas horas. `.env` no se versiona
+   ni entra al .zip de entrega.
+   Alternativa: exporta las tres variables en la misma terminal donde arrancas uvicorn
+   (`export AWS_ACCESS_KEY_ID=...`). No valen para otras terminales.
+2. Arranca la API (`.venv/bin/uvicorn backend.main:app --port 8000`) y espera a que termine de calcular (~50 s).
+3. Prueba: `curl localhost:8000/api/defenders/<nflId>/informe`. Con `generado_con_ia: true` la IA funciona.
+
+Variables opcionales: `AWS_REGION` (por defecto `us-east-1`) y `BEDROCK_MODEL_ID` (por defecto
+`us.amazon.nova-pro-v1:0`). El código nunca lee ni escribe las llaves; boto3 las toma del entorno.
+Si las llaves caducan, pega nuevas y reinicia la API. Cada informe generado con IA se guarda en memoria hasta reiniciar.
+
+### En AWS
+No se configura nada: el hosting define `BEDROCK_MODEL_ID` y el rol de la tarea firma las llamadas.
+
+### Pendiente
+El dashboard todavía no muestra el informe. Hace falta un bloque en el perfil del defensor que consuma
+`fetch('api/defenders/' + id + '/informe')`.
 
 ## Entrega
 
