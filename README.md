@@ -59,13 +59,42 @@ cd dashboard && npm install && npm run dev
 
 Abre la URL que muestra Vite (usa `localhost`, no `127.0.0.1`).
 
+### Windows (PowerShell)
+
+Verifica el entorno con `.\.hackathon\setup.cmd --check`.
+
+En Windows, Node está en `.hackathon\.tools\node` (sin `bin`). PowerShell suele bloquear `npm.ps1`
+("la ejecución de scripts está deshabilitada en este sistema"); para evitarlo usa `npm.cmd` en lugar de `npm`,
+o corre los comandos desde `cmd`.
+
+```
+# Terminal 1 (raíz del proyecto): API
+.venv\Scripts\uvicorn backend.main:app --port 8000
+
+# Terminal 2: dashboard
+$env:Path = "$PWD\.hackathon\.tools\node;$env:Path"
+cd dashboard
+npm.cmd install   # solo si no existe node_modules
+npm.cmd run dev
+```
+
+Para el modo de un solo servidor, usa `npm.cmd run build` en `dashboard` y luego el comando de la Terminal 1.
+
+Si uvicorn falla con `[Errno 10048] ... solo se permite un uso de cada dirección de socket`, ya hay otro proceso
+en el puerto 8000 (por ejemplo, una API anterior que sigue corriendo con código viejo). Búscalo y ciérralo:
+
+```
+Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object OwningProcess
+Stop-Process -Id <PID>
+```
+
 ### Notas
 
 - Al arrancar, la API calcula los modelos (~50 s). Mientras tanto `/health` responde `ok` y las rutas `/api`
   responden 503; el dashboard funciona cuando termina.
 - `backend/capturas.csv` ya está versionado. Solo hace falta regenerarlo si cambia la lógica de extracción:
   `.venv/bin/python backend/precompute.py` (~130 s, lee `data/tracking/`).
-- En Windows usa `.venv\Scripts\uvicorn` en lugar de `.venv/bin/uvicorn`.
+- En Windows usa `.venv\Scripts\uvicorn` y `.venv\Scripts\python` en lugar de `.venv/bin/...` (ver la sección Windows).
 - IA opcional: `GET api/defenders/{id}/informe` intenta redactar el informe con Amazon Bedrock (Nova, Strands Agents).
   Si no hay llaves o falla, devuelve una plantilla con las mismas cifras (`generado_con_ia: false`). Para probarla en
   local copia `.env.example` a `.env` y pega las llaves temporales del workshop (`.env` no se versiona ni se entrega).
