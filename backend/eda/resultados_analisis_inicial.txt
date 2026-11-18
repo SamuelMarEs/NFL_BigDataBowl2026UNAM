@@ -1,0 +1,152 @@
+inicio
+
+======================================================================
+1) EVENTOS EN TRACKING (frames con evento, fila del balon)
+======================================================================
+nan                          333624
+ball_snap                      8532
+pass_forward                   7548
+autoevent_ballsnap             3767
+autoevent_passforward          3734
+play_action                    1977
+run                             474
+qb_sack                         451
+pass_arrived                    367
+autoevent_passinterrupted       201
+man_in_motion                   177
+line_set                        140
+shift                           133
+pass_tipped                     111
+first_contact                    80
+qb_strip_sack                    58
+pass_outcome_incomplete          40
+pass_outcome_caught              23
+fumble                           17
+fumble_offense_recovered         11
+handoff                          10
+huddle_break_offense              3
+tackle                            3
+penalty_flag                      2
+lateral                           1
+dropped_pass                      1
+out_of_bounds                     1
+
+======================================================================
+1b) EVENTOS QUE OCURREN DESPUES DE 'pass_outcome_caught'
+======================================================================
+nan    2
+
+Jugadas con passResult == 'C' en plays.csv: 4620
+Jugadas con evento pass_outcome_caught en tracking: 23
+Cruce passResult=='C' vs catch en tracking: {'left_only': 4597, 'both': 23, 'right_only': 0}
+
+======================================================================
+2) DIRECCION DE LA JUGADA
+======================================================================
+Jugadas por playDirection: {'left': 4416, 'right': 4116}
+
+x media de la ofensiva - x del balon en el snap (negativo = ofensiva a la izquierda):
+        count  mean   std   min   25%   50%   75%   max
+dirn                                                   
+left   4416.0  1.51  0.55 -6.02  1.25  1.64  1.87  3.12
+right  4116.0 -1.50  0.56 -2.91 -1.86 -1.65 -1.26  2.40
+
+absoluteYardlineNumber - x del balon en el snap:
+        count  mean   std   min   25%   50%   75%   max
+dirn                                                   
+left   4416.0 -0.47  0.58 -7.66 -0.75 -0.32 -0.08  1.43
+right  4115.0  0.54  0.58 -1.17  0.16  0.38  0.83  4.44
+
+======================================================================
+3) PASES COMPLETADOS POR DEFENSOR (defensor mas cercano al receptor en la atrapada)
+======================================================================
+C:\Users\aromo\OneDrive\Escritorio\plantilla-hackathon\hackathon-unam\backend\eda\analisis_inicial.py:132: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+  catches["cov"] = catches["cov"].fillna(False)
+Atrapadas analizadas: 23
+Distancia receptor-balon en la atrapada (yd): mediana 0.89, p95 1.98
+Distancia defensor-receptor (yd): mediana 3.36, p90 6.38
+% defensores mas cercanos con pff_role == 'Coverage': 60.9%
+
+Defensores distintos: 23
+Distribucion de completos permitidos por defensor:
+count    23.0
+mean      1.0
+std       0.0
+min       1.0
+25%       1.0
+50%       1.0
+75%       1.0
+max       1.0
+
+Top 15:
+      displayName officialPosition  completos  dist_media
+    Ryan Kerrigan               DE          1        6.33
+      K.J. Wright              OLB          1        6.58
+   Pernell McPhee              OLB          1        2.78
+    Demario Davis              ILB          1        3.36
+     Bradley Roby               CB          1        0.46
+ Anthony Hitchens              ILB          1        1.81
+  Denzel Perryman              ILB          1        2.32
+   Alex Singleton              OLB          1        5.55
+        Joey Bosa              OLB          1        4.31
+       Myles Jack              MLB          1        3.17
+   Kendall Fuller               CB          1        0.67
+   Cory Littleton              OLB          1        4.27
+Dorance Armstrong               DE          1        4.82
+ Foyesade Oluokun              ILB          1        4.09
+  Khalen Saunders               DT          1        3.34
+
+======================================================================
+4) DISTRIBUCION DE YAC
+======================================================================
+% atrapadas con evento de fin (tackle/out_of_bounds/touchdown...): 0.0%
+
+air_yards:
+count    23.00
+mean      1.54
+std       3.42
+min      -5.69
+10%      -3.73
+25%      -0.15
+50%       2.83
+75%       3.75
+90%       4.40
+99%       6.85
+max       7.48
+
+yac_tracking:
+count    23.00
+mean      0.02
+std       0.07
+min       0.00
+10%       0.00
+25%      -0.00
+50%       0.00
+75%       0.00
+90%       0.00
+99%       0.24
+max       0.26
+
+yac_resultado:
+count    23.00
+mean      5.55
+std       5.15
+min       0.18
+10%       0.64
+25%       2.20
+50%       4.96
+75%       6.59
+90%       9.03
+99%      21.76
+max      24.58
+
+Correlacion yac_tracking vs yac_resultado: 0.002
+
+Histograma yac_resultado (yd):
+yac_resultado
+<=0      0
+0-2      6
+2-5      6
+5-10     9
+10-20    1
+>20      1

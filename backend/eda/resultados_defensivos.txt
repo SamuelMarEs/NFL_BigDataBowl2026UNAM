@@ -1,0 +1,94 @@
+======================================================================
+RESUMEN DE RESULTADOS DEL PASE (plays.csv)
+======================================================================
+passResult (todas): {'C': 4620, 'I': 2755, 'S': 543, 'R': 449, 'IN': 190}
+Jugadas anuladas por castigo ('No Play'), excluidas: 489
+
+======================================================================
+COBERTURA DE LA ATRIBUCION
+======================================================================
+ IN:   176 jugadas validas,   176 con defensor atribuido (100.0%)
+  I:  2466 jugadas validas,   680 con defensor atribuido (27.6%)
+  C:  4487 jugadas validas,  3728 con defensor atribuido (83.1%)
+Fumbles: 148 jugadas con FUMBLES, 129 forzados por un defensor; 62 recuperados por la defensa
+Fumbles forzados por passResult de la jugada: {'S': 61, 'C': 51, 'R': 7}
+Nombres sin resolver a nflId: 8 de 5196
+    ('fumbles_forzados', 'D.Knox', 2021091905, 709)
+    ('completos_tacleados', 'Qu.Williams', 2021091906, 1331)
+    ('fumbles_forzados', 'D.Quessenberry', 2021092608, 823)
+    ('completos_tacleados', 'Qu.Williams', 2021100307, 4182)
+    ('completos_tacleados', 'Qu.Williams', 2021101000, 2307)
+    ('fumbles_forzados', 'Qu.Williams', 2021101000, 2307)
+    ('incompletos_defendidos', 'Qu.Williams', 2021102403, 797)
+    ('fumbles_forzados', 'J.James', 2021102409, 1314)
+
+======================================================================
+POR DEFENSOR
+======================================================================
+Defensores con al menos un evento: 613
+
+Totales: {'intercepciones': 176, 'incompletos_defendidos': 680, 'fumbles_forzados': 119, 'fumbles_recuperados': 62, 'jugadas_negativas_para_ofensiva': 975, 'completos_tacleados': 4151}
+
+Top 20 por intercepciones + incompletos defendidos + fumbles forzados:
+      displayName officialPosition defensiveTeam  intercepciones  incompletos_defendidos  fumbles_forzados  fumbles_recuperados  jugadas_negativas_para_ofensiva  completos_tacleados
+      Kevin Byard               FS           TEN               4                       5                 1                    1                               10                    6
+     J.C. Jackson               CB            NE               3                       7                 0                    0                               10                   21
+Marshon Lattimore               CB            NO               1                       9                 0                    0                               10                   15
+     Trevon Diggs               CB           DAL               6                       3                 0                    0                                9                   16
+  James Bradberry               CB           NYG               3                       6                 0                    1                                9                   20
+ Emmanuel Moseley               CB            SF               0                       9                 0                    0                                9                   12
+    Xavien Howard               CB           MIA               2                       6                 0                    0                                8                   15
+    Anthony Brown               CB           DAL               2                       6                 0                    0                                8                   26
+  Anthony Averett               CB           BAL               2                       6                 0                    0                                8                   32
+   Chidobe Awuzie               CB           CIN               1                       7                 0                    0                                8                   15
+      Eric Stokes               CB            GB               1                       7                 0                    0                                8                   18
+     Xavier Woods               FS           MIN               2                       3                 2                    0                                7                   10
+     Byron Murphy               CB           ARI               2                       5                 0                    0                                7                   15
+       Jamel Dean               CB            TB               2                       5                 0                    0                                7                   14
+   Kendall Fuller               CB           WAS               1                       6                 0                    0                                7                   29
+  Marlon Humphrey               CB           BAL               1                       5                 1                    0                                7                   23
+    Donte Jackson               CB           CAR               1                       5                 1                    0                                7                   19
+  Patrick Surtain               CB           DEN               1                       6                 0                    0                                7                   14
+       Bryce Hall               CB           NYJ               0                       7                 0                    0                                7                   17
+   Justin Simmons               FS           DEN               3                       3                 0                    0                                6                   15
+
+Top 10 intercepciones:
+    displayName officialPosition defensiveTeam  intercepciones
+   Trevon Diggs               CB           DAL               6
+   Logan Wilson              ILB           CIN               4
+    Kevin Byard               FS           TEN               4
+ Justin Simmons               FS           DEN               3
+Adrian Phillips               SS            NE               3
+Amani Oruwariye               CB           DET               3
+ Lonnie Johnson               CB           HOU               3
+   J.C. Jackson               CB            NE               3
+   Jordan Poyer               SS           BUF               3
+James Bradberry               CB           NYG               3
+
+Top 10 fumbles forzados:
+     displayName officialPosition defensiveTeam  fumbles_forzados
+       T.J. Watt              OLB           PIT                 3
+    Derwin James               FS           LAC                 3
+     Josh Norman               CB            SF                 3
+  Isaiah Simmons              ILB           ARI                 2
+ Shaquil Barrett              OLB            TB                 2
+Antoine Winfield               FS            TB                 2
+      Logan Ryan               FS           NYG                 2
+   Randy Gregory               DE           DAL                 2
+      Malik Reed              OLB           DEN                 2
+    Xavier Woods               FS           MIN                 2
+
+Por posicion oficial (suma):
+                  intercepciones  incompletos_defendidos  fumbles_forzados  fumbles_recuperados  jugadas_negativas_para_ofensiva  completos_tacleados
+officialPosition                                                                                                                                     
+CB                            80                     349                22                    9                              451                 1679
+FS                            37                      87                14                    6                              138                  604
+SS                            25                      50                 8                    2                               83                  587
+OLB                           12                      41                28                   15                               81                  388
+ILB                           14                      49                11                    8                               74                  607
+DE                             1                      49                23                    7                               73                   46
+DT                             3                      33                11                    9                               47                   31
+MLB                            4                      16                 1                    2                               21                  192
+NT                             0                       5                 1                    4                                6                    8
+RB                             0                       1                 0                    0                                1                    3
+DB                             0                       0                 0                    0                                0                    6
